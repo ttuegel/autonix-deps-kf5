@@ -1,6 +1,6 @@
 name:                autonix-deps-kf5
 version:             0.1.0.0
-synopsis:            Automatically generate dependencies for kde-frameworks-5 Nix expressions
+synopsis:            Generate dependencies for KDE 5 Nix expressions
 license:             BSD3
 license-file:        LICENSE
 author:              Thomas Tuegel

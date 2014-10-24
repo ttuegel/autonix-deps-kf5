@@ -8,7 +8,7 @@ cabal.mkDerivation (self: {
   isExecutable = true;
   buildDepends = [ autonixDeps ];
   meta = {
-    description = "Automatically generate dependencies for kde-frameworks-5 Nix expressions";
+    description = "Generate dependencies for KDE 5 Nix expressions";
     license = self.stdenv.lib.licenses.bsd3;
     platforms = self.ghc.meta.platforms;
   };
