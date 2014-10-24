@@ -1,7 +1,7 @@
-{ nixpkgs ? import ../../../../.. {}
+{ nixpkgs ? import <nixpkgs> {}
 , haskellPackages ? nixpkgs.haskellPackages
 }:
 
 haskellPackages.callPackage ./default.nix {
-  inherit (nixpkgs.autonix) deps;
+  autonixDeps = haskellPackages.callPackage ../autonix-deps {};
 }
