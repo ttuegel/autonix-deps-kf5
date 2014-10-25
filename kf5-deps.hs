@@ -24,14 +24,52 @@ main = do
         let analyzers :: [Analyzer (StateT Deps (StateT KF5Names IO))]
             analyzers =
                 concat
-                [ [resolveKF5Names name]
+                [ [ resolveKF5Names name
+                  ]
                 , cmakeAnalyzers
                 ]
-        renameECM <$> analyzeFiles analyzers name path
+        analyzeFiles analyzers name path
+            <&> nativePkgs [ "BISON"
+                           , "ECM"
+                           , "FLEX"
+                           , "KF5DocTools"
+                           , "KF5I18N"
+                           , "LibXslt"
+                           , "Perl"
+                           , "PythonInterp"
+                           ]
+            . userEnvPkgs [ "SharedMimeInfo"
+                          ]
+            . renameECM
 
 renameECM :: Deps -> Deps
 renameECM = execState $ do
-    hasECM <- S.member "ECM" <$> use buildInputs
-    when hasECM $ do
-        buildInputs %= S.delete "ECM"
-        nativeBuildInputs %= S.insert "extra-cmake-modules"
+    buildInputs %= S.map rename
+    nativeBuildInputs %= S.map rename
+    propagatedBuildInputs %= S.map rename
+    propagatedNativeBuildInputs %= S.map rename
+    propagatedUserEnvPkgs %= S.map rename
+  where
+    rename "ECM" = "extra-cmake-modules"
+    rename x = x
+
+nativePkgs :: [ByteString] -> Deps -> Deps
+nativePkgs names = execState $ do
+    inputs <- filterM (\x -> S.member x <$> use buildInputs) names
+    propInputs <- filterM (\x -> S.member x <$> use propagatedBuildInputs) names
+    forM_ inputs $ \x -> do
+        buildInputs %= S.delete x
+        nativeBuildInputs %= S.insert x
+    forM_ propInputs $ \x -> do
+        propagatedBuildInputs %= S.delete x
+        propagatedNativeBuildInputs %= S.insert x
+
+userEnvPkgs :: [ByteString] -> Deps -> Deps
+userEnvPkgs names = execState $ do
+    inputs <- filterM (\x -> S.member x <$> use buildInputs) names
+    propInputs <- filterM (\x -> S.member x <$> use propagatedBuildInputs) names
+    forM_ (inputs ++ propInputs) $ \x -> do
+        buildInputs %= S.delete x
+        propagatedBuildInputs %= S.delete x
+        propagatedNativeBuildInputs %= S.insert x
+        propagatedUserEnvPkgs %= S.insert x
