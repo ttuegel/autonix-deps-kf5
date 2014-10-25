@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module KF5Names where
+module KF5 where
 
 import Control.Applicative
 import Control.Lens
@@ -16,10 +16,14 @@ import Analyze
 import Regex
 import Types
 
-newtype KF5Names = KF5Names { _kf5Names :: Map ByteString ByteString }
-makeLenses ''KF5Names
+data KF5 =
+    KF5
+    { _kf5Names :: Map ByteString ByteString
+    , _kf5Propagate :: Map ByteString (Set ByteString)
+    }
+makeLenses ''KF5
 
-resolveKF5Names :: (Functor m, MonadIO m, MonadState KF5Names m)
+resolveKF5Names :: (Functor m, MonadIO m, MonadState KF5 m)
                 => ByteString -> Analyzer (StateT Deps m)
 resolveKF5Names name = matchFileName "metainfo.yaml" $ \contents -> do
     let regex = makeRegex "cmakename:[[:space:]]*([[:alnum:]]*)"
@@ -28,7 +32,7 @@ resolveKF5Names name = matchFileName "metainfo.yaml" $ \contents -> do
         ((_ : cmakeName : _) : _) -> lift $ kf5Names %= M.insert cmakeName name
         _ -> return ()
 
-renameDeps :: KF5Names -> Deps -> Deps
+renameDeps :: KF5 -> Deps -> Deps
 renameDeps names = execState $ do
     buildInputs %= rename
     propagatedBuildInputs %= rename

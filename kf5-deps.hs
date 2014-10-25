@@ -12,16 +12,16 @@ import Analyze
 import CMake
 import Deps
 import Generate
-import KF5Names
+import KF5
 
 main :: IO ()
 main = do
-    (deps, names) <- runStateT analyze $ KF5Names M.empty
+    (deps, names) <- runStateT analyze $ KF5 M.empty M.empty
     writeDeps $ map (_2 %~ renameDeps names) deps
   where
-    analyze :: StateT KF5Names IO [(ByteString, Deps)]
+    analyze :: StateT KF5 IO [(ByteString, Deps)]
     analyze = analyzePackages $ \name path -> do
-        let analyzers :: [Analyzer (StateT Deps (StateT KF5Names IO))]
+        let analyzers :: [Analyzer (StateT Deps (StateT KF5 IO))]
             analyzers =
                 concat
                 [ [ resolveKF5Names name

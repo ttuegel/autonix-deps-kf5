@@ -12,7 +12,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:
-    KF5Names
+    KF5
   build-depends:
       autonix-deps ==0.1.*
     , base >=4.7 && <5
