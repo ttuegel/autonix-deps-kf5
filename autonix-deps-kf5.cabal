@@ -18,6 +18,8 @@ library
     , base >=4.7 && <5
     , containers >=0.5
     , lens >=4.0
+    , mtl >=2.1
+    , transformers >=0.3
   hs-source-dirs: src
   default-language: Haskell2010
 
@@ -27,5 +29,7 @@ executable kf5-deps
       autonix-deps
     , autonix-deps-kf5
     , base
+    , containers
     , lens
+    , mtl
   default-language: Haskell2010
