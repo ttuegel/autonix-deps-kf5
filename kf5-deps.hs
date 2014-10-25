@@ -16,8 +16,11 @@ import KF5
 
 main :: IO ()
 main = do
-    (deps, names) <- runStateT analyze $ KF5 M.empty M.empty
-    writeDeps $ map (_2 %~ renameDeps names) deps
+    (deps, kf5) <- runStateT analyze $ KF5 M.empty M.empty
+    writeDeps $ map
+        ( (_2 %~ renameDeps kf5)
+          . propagateDeps kf5
+        ) deps
   where
     analyze :: StateT KF5 IO [(ByteString, Deps)]
     analyze = analyzePackages $ \name path -> do
@@ -25,6 +28,7 @@ main = do
             analyzers =
                 concat
                 [ [ resolveKF5Names name
+                  , resolveKF5Propagates
                   ]
                 , cmakeAnalyzers
                 ]
@@ -73,3 +77,17 @@ userEnvPkgs names = execState $ do
         propagatedBuildInputs %= S.delete x
         propagatedNativeBuildInputs %= S.insert x
         propagatedUserEnvPkgs %= S.insert x
+
+propagateDeps :: KF5 -> (ByteString, Deps) -> (ByteString, Deps)
+propagateDeps kf5 (name, deps) =
+    ( name
+    , flip execState deps $ do
+        case M.lookup name propagate of
+            Nothing -> return ()
+            Just ds -> propagatedBuildInputs %= S.union ds
+    )
+  where
+    names = kf5^.kf5Names
+    propagate = M.mapKeys
+                (\x -> M.findWithDefault x x names)
+                $ kf5^.kf5Propagate
