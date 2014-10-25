@@ -4,8 +4,4 @@ import CMake
 import Deps
 
 main :: IO ()
-main =
-    generateDeps
-    [ detectCMake
-    , analyzeCMakeDeps
-    ]
+main = generateDeps cmakeAnalyzers
