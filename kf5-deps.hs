@@ -17,3 +17,4 @@ main = do
         analyzePackages $ analyzeFiles kf5Analyzers
         kf5PostAnalyze
     writeDeps analysis
+    writeRenames analysis
