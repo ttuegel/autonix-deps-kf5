@@ -32,7 +32,8 @@ propagateKF5Deps :: (MonadIO m, MonadState Deps m) => Analyzer m
 propagateKF5Deps _ path contents = do
     let isCMake = ".cmake" `isPrefixOf` takeExtensions path
         base = takeBaseName $ takeBaseName path
-        regex = makeRegex "find_dependency\\([[:space:]]*([^[:space:],$\\)]+)"
+        regex = makeRegex
+                "find_dependency[[:space:]]*\\([[:space:]]*([^[:space:],$\\)]+)"
     case splitAt (length base - 6) base of
         (pkg, "Config") | isCMake -> do
             new <- liftM (concatMap (take 1 . drop 1) . match regex)
