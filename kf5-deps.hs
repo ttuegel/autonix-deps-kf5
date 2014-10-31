@@ -2,15 +2,10 @@
 
 module Main where
 
-import Control.Applicative
-import Control.Lens
 import Control.Monad.State
-import qualified Data.Map as M
 import Data.Monoid
-import qualified Data.Set as S
 
 import Autonix.Analyze
-import Autonix.CMake
 import Autonix.Deps
 import Autonix.Generate
 import Autonix.KF5

@@ -8,9 +8,12 @@ import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.State
 import qualified Data.ByteString.Char8 as B
+import Data.List (isPrefixOf)
 import qualified Data.Map as M
+import Data.Maybe (fromMaybe)
 import Data.Monoid
 import qualified Data.Set as S
+import System.FilePath (takeBaseName, takeExtensions)
 
 import Autonix.Analyze
 import Autonix.CMake
@@ -25,8 +28,23 @@ renameKF5Pkgs pkg = matchFileName "metainfo.yaml" $ \contents -> do
         ((_ : cmakeName : _) : _) -> rename cmakeName pkg
         _ -> return ()
 
+propagateKF5Deps :: (MonadIO m, MonadState Deps m) => Analyzer m
+propagateKF5Deps _ path contents = do
+    let isCMake = ".cmake" `isPrefixOf` takeExtensions path
+        base = takeBaseName $ takeBaseName path
+        regex = makeRegex "find_dependency\\([[:space:]]*([^[:space:],$\\)]+)"
+    case splitAt (length base - 6) base of
+        (pkg, "Config") | isCMake -> do
+            new <- liftM (concatMap (take 1 . drop 1) . match regex)
+                   $ liftIO contents
+            at (B.pack pkg) %=
+                Just
+                . (propagatedBuildInputs %~ S.union (S.fromList new))
+                . fromMaybe mempty
+        _ -> return ()
+
 kf5Analyzers :: (MonadIO m, MonadState Deps m) => [Analyzer m]
-kf5Analyzers = [renameKF5Pkgs] ++ cmakeAnalyzers
+kf5Analyzers = [renameKF5Pkgs, propagateKF5Deps] ++ cmakeAnalyzers
 
 kf5PostAnalyze :: MonadState Deps m => m ()
 kf5PostAnalyze = do
