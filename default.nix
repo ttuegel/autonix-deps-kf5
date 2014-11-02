@@ -1,4 +1,4 @@
-{ cabal, autonixDeps, lens, mtl, transformers }:
+{ cabal, autonixDeps, conduit, lens, mtl, transformers }:
 
 cabal.mkDerivation (self: {
   pname = "autonix-deps-kf5";
@@ -6,7 +6,7 @@ cabal.mkDerivation (self: {
   src = builtins.filterSource (path: type: baseNameOf path != "dist") ./.;
   isLibrary = false;
   isExecutable = true;
-  buildDepends = [ autonixDeps lens mtl transformers ];
+  buildDepends = [ autonixDeps conduit lens mtl transformers ];
   meta = {
     description = "Generate dependencies for KDE 5 Nix expressions";
     license = self.stdenv.lib.licenses.bsd3;
