@@ -1,0 +1,6 @@
+[submodule "autonix-deps"]
+	path = autonix-deps
+	url = https://github.com/ttuegel/autonix-deps.git
+[submodule "libarchive-conduit"]
+	path = libarchive-conduit
+	url = https://github.com/ttuegel/libarchive-conduit.git

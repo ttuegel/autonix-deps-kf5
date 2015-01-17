@@ -1,9 +1,10 @@
-{ nixpkgs ? import <nixpkgs> {}
-, haskellPackages ? nixpkgs.haskellPackages
-}:
-
-haskellPackages.callPackage ./default.nix {
-  autonixDeps = haskellPackages.callPackage ../autonix-deps {
-    libarchiveConduit = haskellPackages.callPackage ../libarchive-conduit {};
+with (import <nixpkgs> {});
+with pkgs;
+(haskellngPackages.callPackage ./. {
+  autonix-deps = haskellngPackages.callPackage ./autonix-deps {
+    libarchive-conduit =
+      haskellngPackages.callPackage
+        ./libarchive-conduit
+        { archive = pkgs.libarchive; };
   };
-}
+}).env

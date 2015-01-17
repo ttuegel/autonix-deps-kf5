@@ -1,15 +1,16 @@
-{ cabal, autonixDeps, conduit, lens, mtl, transformers }:
-
-cabal.mkDerivation (self: {
+{ mkDerivation, autonix-deps, base, bytestring, conduit, containers
+, filepath, lens, mtl, stdenv, transformers
+}:
+mkDerivation {
   pname = "autonix-deps-kf5";
   version = "0.1.0.0";
-  src = builtins.filterSource (path: type: baseNameOf path != "dist") ./.;
-  isLibrary = false;
+  src = ./.;
+  isLibrary = true;
   isExecutable = true;
-  buildDepends = [ autonixDeps conduit lens mtl transformers ];
-  meta = {
-    description = "Generate dependencies for KDE 5 Nix expressions";
-    license = self.stdenv.lib.licenses.bsd3;
-    platforms = self.ghc.meta.platforms;
-  };
-})
+  buildDepends = [
+    autonix-deps base bytestring conduit containers filepath lens mtl
+    transformers
+  ];
+  description = "Generate dependencies for KDE 5 Nix expressions";
+  license = stdenv.lib.licenses.bsd3;
+}
