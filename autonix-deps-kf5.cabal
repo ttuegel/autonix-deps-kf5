@@ -1,5 +1,5 @@
 name:                autonix-deps-kf5
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Generate dependencies for KDE 5 Nix expressions
 license:             BSD3
 license-file:        LICENSE
@@ -23,7 +23,7 @@ library
   exposed-modules:
     Autonix.KF5
   build-depends:
-      autonix-deps ==0.1.*
+      autonix-deps ==0.2.*
     , base >=4.7 && <5
     , bytestring >=0.10
     , conduit ==1.2.*
