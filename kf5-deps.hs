@@ -12,9 +12,9 @@ import Autonix.Generate
 import Autonix.KF5
 
 main :: IO ()
-main = withArgs $ \manifest renames -> flip evalStateT mempty $ do
+main = withArgs $ \manifest -> flip evalStateT mempty $ do
     rename "ECM" "extra-cmake-modules"
-    analyzePackages (analyzeFiles kf5Analyzers) manifest renames
+    analyzePackages (analyzeFiles kf5Analyzers) manifest
     kf5PostAnalyze
     get >>= writeDeps
     get >>= writeRenames
