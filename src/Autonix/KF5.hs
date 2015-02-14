@@ -63,6 +63,19 @@ findKF5Components pkg = awaitForever $ \(path, contents) ->
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
         ix pkg . buildInputs %= S.union (S.fromList $ map ("KF5" <>) new)
 
+findQt5Components :: (MonadIO m, MonadState Deps m) => Analyzer m
+findQt5Components pkg = awaitForever $ \(path, contents) ->
+    when ("CMakeLists.txt" == takeFileName path) $ do
+        let new = filter (not . cmakeReserved)
+                  $ filter (not . B.null)
+                  $ concatMap B.words
+                  $ concatMap (take 1 . drop 1)
+                  $ match regex contents
+            regex = makeRegex
+                    "find_package[[:space:]]*\\([[:space:]]*Qt5\
+                    \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
+        ix pkg . buildInputs %= S.union (S.fromList $ map ("KF5" <>) new)
+
 cmakeReserved :: ByteString -> Bool
 cmakeReserved bs = or $ map ($ bs)
                    [ B.elem '$'
@@ -76,8 +89,13 @@ cmakeReserved bs = or $ map ($ bs)
                    ]
 
 kf5Analyzers :: (MonadIO m, MonadState Deps m) => [Analyzer m]
-kf5Analyzers = [findKF5Components, renameKF5Pkgs, propagateKF5Deps]
-               ++ cmakeAnalyzers
+kf5Analyzers =
+  [ findKF5Components
+  , findQt5Components
+  , renameKF5Pkgs
+  , propagateKF5Deps
+  ]
+  ++ cmakeAnalyzers
 
 kf5PostAnalyze :: MonadState Deps m => m ()
 kf5PostAnalyze = do
