@@ -74,7 +74,7 @@ findQt5Components pkg = awaitForever $ \(path, contents) ->
             regex = makeRegex
                     "find_package[[:space:]]*\\([[:space:]]*Qt5\
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
-        ix pkg . buildInputs %= S.union (S.fromList $ map ("KF5" <>) new)
+        ix pkg . buildInputs %= S.union (S.fromList $ map ("Qt5" <>) new)
 
 cmakeReserved :: ByteString -> Bool
 cmakeReserved bs = or $ map ($ bs)
