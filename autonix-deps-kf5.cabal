@@ -1,5 +1,5 @@
 name:                autonix-deps-kf5
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            Generate dependencies for KDE 5 Nix expressions
 license:             BSD3
 license-file:        LICENSE
