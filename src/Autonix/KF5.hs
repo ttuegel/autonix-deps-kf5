@@ -94,30 +94,39 @@ kf5Analyzers =
   ++ cmakeAnalyzers
 
 postProcess :: Map Text Package -> Map Text Package
-postProcess =
-  M.map propagateInputs
-  . M.map nativateInputs
-  . M.map enviateInputs
+postProcess = M.mapWithKey (\name -> execState (sequence_ (processors name)))
   where
-    enviateInputs pkg = flip execState pkg $ do
-      env <- S.intersection userEnvPackages <$> use Package.buildInputs
-      Package.propagatedUserEnvPkgs <>= env
+    processors name = [ breakCycles name, userEnv, native, propagate ]
 
-    nativateInputs pkg = flip execState pkg $ do
-      native <- S.intersection nativePackages <$> use Package.buildInputs
-      Package.nativeBuildInputs <>= native
-      Package.buildInputs %= S.filter (\dep -> not $ S.member dep native)
+    userEnv = do
+      puep <- S.intersection userEnvPackages <$> use Package.buildInputs
+      Package.propagatedUserEnvPkgs <>= puep
 
-    propagateInputs pkg = flip execState pkg $ do
+    native = do
+      nbi <- S.intersection nativePackages <$> use Package.buildInputs
+      Package.nativeBuildInputs <>= nbi
+      let isNative pkg = S.member pkg nbi
+      Package.buildInputs %= S.filter (not . isNative)
+
+    propagate = do
       let propagated = S.intersection propagatedPackages
 
-      build <- propagated <$> use Package.buildInputs
-      Package.propagatedBuildInputs <>= build
-      Package.buildInputs %= S.filter (\dep -> not $ S.member dep build)
+      pbi <- propagated <$> use Package.buildInputs
+      Package.propagatedBuildInputs <>= pbi
+      let isPropagated pkg = S.member pkg pbi
+      Package.buildInputs %= S.filter (not . isPropagated)
 
-      native <- propagated <$> use Package.nativeBuildInputs
-      Package.propagatedNativeBuildInputs <>= native
-      Package.nativeBuildInputs %= S.filter (\dep -> not $ S.member dep native)
+      pnbi <- propagated <$> use Package.nativeBuildInputs
+      Package.propagatedNativeBuildInputs <>= pnbi
+      let isPropagatedNative pkg = S.member pkg pnbi
+      Package.nativeBuildInputs %= S.filter (not . isPropagatedNative)
+
+    breakCycles pkg = do
+      Package.buildInputs %= S.delete pkg
+      Package.nativeBuildInputs %= S.delete pkg
+      Package.propagatedBuildInputs %= S.delete pkg
+      Package.propagatedNativeBuildInputs %= S.delete pkg
+      Package.propagatedUserEnvPkgs %= S.delete pkg
 
 nativePackages :: Set Text
 nativePackages =
