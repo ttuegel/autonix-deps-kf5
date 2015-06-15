@@ -7,53 +7,45 @@ module Autonix.KF5 where
 import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.State
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
-import Data.List (isPrefixOf)
+import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
 import Data.Monoid
+import Data.Set (Set)
 import qualified Data.Set as S
-import System.FilePath (takeBaseName, takeExtensions, takeFileName)
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import System.FilePath (takeFileName)
 
 import Autonix.Analyze
 import Autonix.CMake
-import Autonix.Deps
+import Autonix.Package (Package)
+import qualified Autonix.Package as Package
 import Autonix.Regex
+import Autonix.Renames
 
 printFilePaths :: MonadIO m => Analyzer m
 printFilePaths _ = awaitForever $ \(path, _) -> liftIO $ putStrLn path
 
-renameKF5Pkgs :: (MonadIO m, MonadState Deps m) => Analyzer m
+renameKF5Pkgs :: (MonadIO m, MonadState Renames m) => Analyzer m
 renameKF5Pkgs pkg = awaitForever $ \(path, contents) ->
-    when (takeFileName path == "metainfo.yaml") $ do
-        let regex = makeRegex "cmakename:[[:space:]]*([[:alnum:]]*)"
-            matches = match regex contents
-        case matches of
-            ((_ : cmakeName : _) : _) -> rename cmakeName pkg
-            _ -> return ()
+  when (takeFileName path == "metainfo.yaml") $ do
+    let regex = makeRegex "cmakename:[[:space:]]*([[:alnum:]]*)"
+    case match regex contents of
+      ((_ : cmakeName : _) : _) ->
+        lift $ lift $ lift $ rename (T.toLower $ T.decodeUtf8 cmakeName) pkg
+      _ -> return ()
 
-propagateKF5Deps :: (MonadIO m, MonadState Deps m) => Analyzer m
-propagateKF5Deps newPkg = awaitForever $ \(path, contents) ->
-    when (".cmake" `isPrefixOf` takeExtensions path) $ do
-        let base = takeBaseName $ takeBaseName path
-            regex = makeRegex
-                    "find_dependency[[:space:]]*\\([[:space:]]*\
-                    \([^[:space:],$\\)]+)"
-        case splitAt (length base - 6) base of
-            (oldPkg, "Config") -> do
-                let new = concatMap (take 1 . drop 1) $ match regex contents
-                rename (B.pack oldPkg) newPkg
-                at newPkg %=
-                    Just
-                    . (propagatedBuildInputs %~ S.union (S.fromList new))
-                    . fromMaybe mempty
-            _ -> return ()
-
-findKF5Components :: (MonadIO m, MonadState Deps m) => Analyzer m
-findKF5Components pkg = awaitForever $ \(path, contents) ->
+findKF5Components :: MonadIO m => Analyzer m
+findKF5Components _ = awaitForever $ \(path, contents) ->
     when ("CMakeLists.txt" == takeFileName path) $ do
-        let new = filter (not . cmakeReserved)
+        let new = S.fromList
+                  $ map ("kf5" <>)
+                  $ map (T.toLower . T.decodeUtf8)
+                  $ filter (not . cmakeReserved)
                   $ filter (not . B.null)
                   $ concatMap B.words
                   $ concatMap (take 1 . drop 1)
@@ -61,12 +53,15 @@ findKF5Components pkg = awaitForever $ \(path, contents) ->
             regex = makeRegex
                     "find_package[[:space:]]*\\([[:space:]]*KF5\
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
-        ix pkg . buildInputs %= S.union (S.fromList $ map ("KF5" <>) new)
+        Package.buildInputs %= S.union new
 
-findQt5Components :: (MonadIO m, MonadState Deps m) => Analyzer m
-findQt5Components pkg = awaitForever $ \(path, contents) ->
+findQt5Components :: MonadIO m => Analyzer m
+findQt5Components _ = awaitForever $ \(path, contents) ->
     when ("CMakeLists.txt" == takeFileName path) $ do
-        let new = filter (not . cmakeReserved)
+        let new = S.fromList
+                  $ map ("qt5" <>)
+                  $ map (T.toLower . T.decodeUtf8)
+                  $ filter (not . cmakeReserved)
                   $ filter (not . B.null)
                   $ concatMap B.words
                   $ concatMap (take 1 . drop 1)
@@ -74,7 +69,7 @@ findQt5Components pkg = awaitForever $ \(path, contents) ->
             regex = makeRegex
                     "find_package[[:space:]]*\\([[:space:]]*Qt5\
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
-        ix pkg . buildInputs %= S.union (S.fromList $ map ("Qt5" <>) new)
+        Package.buildInputs %= S.union new
 
 cmakeReserved :: ByteString -> Bool
 cmakeReserved bs = or $ map ($ bs)
@@ -86,67 +81,65 @@ cmakeReserved bs = or $ map ($ bs)
                    , (==) "COMPONENTS"
                    , (==) "REQUIRED"
                    , (==) "CONFIG"
+                   , (==) "NO_MODULE"
+                   , (==) "QUIET"
                    ]
 
-kf5Analyzers :: (MonadIO m, MonadState Deps m) => [Analyzer m]
+kf5Analyzers :: (MonadIO m, MonadState Renames m) => [Analyzer m]
 kf5Analyzers =
   [ findKF5Components
   , findQt5Components
   , renameKF5Pkgs
-  , propagateKF5Deps
   ]
   ++ cmakeAnalyzers
 
-kf5PostAnalyze :: MonadState Deps m => m ()
-kf5PostAnalyze = do
-    moveNativeInputs
-    movePropagatedInputs
-    moveUserEnvPkgs
-
-moveNativeInputs :: MonadState Deps m => m ()
-moveNativeInputs = deps %= M.map makeNative
+postProcess :: Map Text Package -> Map Text Package
+postProcess =
+  M.map propagateInputs
+  . M.map nativateInputs
+  . M.map enviateInputs
   where
-    makeNative = execState $ forM_ native $ \dep -> do
-        hasDep <- use (buildInputs.to (S.member dep))
-        when hasDep $ do
-            buildInputs %= S.delete dep
-            nativeBuildInputs %= S.insert dep
-        hasPropDep <- use (propagatedBuildInputs.to (S.member dep))
-        when hasPropDep $ do
-            propagatedBuildInputs %= S.delete dep
-            propagatedNativeBuildInputs %= S.insert dep
-    native = [ "BISON"
-             , "extra-cmake-modules"
-             , "FLEX"
-             , "kdoctools"
-             , "ki18n"
-             , "LibXslt"
-             , "Perl"
-             , "PythonInterp"
-             ]
+    enviateInputs pkg = flip execState pkg $ do
+      env <- S.intersection userEnvPackages <$> use Package.buildInputs
+      Package.propagatedUserEnvPkgs <>= env
 
-movePropagatedInputs :: MonadState Deps m => m ()
-movePropagatedInputs = deps %= M.map propagate
-  where
-    propagate = execState $ forM_ propagated $ \dep -> do
-        hasDep <- use (buildInputs.to (S.member dep))
-        when hasDep $ do
-            buildInputs %= S.delete dep
-            propagatedBuildInputs %= S.insert dep
-        hasNativeDep <- use (nativeBuildInputs.to (S.member dep))
-        when hasNativeDep $ do
-            nativeBuildInputs %= S.delete dep
-            propagatedNativeBuildInputs %= S.insert dep
-    propagated = [ "extra-cmake-modules" ]
+    nativateInputs pkg = flip execState pkg $ do
+      native <- S.intersection nativePackages <$> use Package.buildInputs
+      Package.nativeBuildInputs <>= native
+      Package.buildInputs %= S.filter (\dep -> not $ S.member dep native)
 
-moveUserEnvPkgs :: MonadState Deps m => m ()
-moveUserEnvPkgs = deps %= M.map propagate
-  where
-    propagate = execState $ forM_ userEnv $ \dep -> do
-        hasDep <- use (buildInputs.to (S.member dep))
-        hasNativeDep <- use (buildInputs.to (S.member dep))
-        hasPropDep <- use (buildInputs.to (S.member dep))
-        hasPropNativeDep <- use (buildInputs.to (S.member dep))
-        when (hasDep || hasNativeDep || hasPropDep || hasPropNativeDep)
-            $ propagatedUserEnvPkgs %= S.insert dep
-    userEnv = [ "SharedMimeInfo" ]
+    propagateInputs pkg = flip execState pkg $ do
+      let propagated = S.intersection propagatedPackages
+
+      build <- propagated <$> use Package.buildInputs
+      Package.propagatedBuildInputs <>= build
+      Package.buildInputs %= S.filter (\dep -> not $ S.member dep build)
+
+      native <- propagated <$> use Package.nativeBuildInputs
+      Package.propagatedNativeBuildInputs <>= native
+      Package.nativeBuildInputs %= S.filter (\dep -> not $ S.member dep native)
+
+nativePackages :: Set Text
+nativePackages =
+  S.fromList
+    [ "bison"
+    , "extra-cmake-modules"
+    , "flex"
+    , "kdoctools"
+    , "ki18n"
+    , "libxslt"
+    , "perl"
+    , "pythoninterp"
+    ]
+
+propagatedPackages :: Set Text
+propagatedPackages =
+  S.fromList
+    [ "extra-cmake-modules"
+    ]
+
+userEnvPackages :: Set Text
+userEnvPackages =
+  S.fromList
+    [ "sharedmimeinfo"
+    ]
