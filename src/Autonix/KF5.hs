@@ -141,10 +141,11 @@ propagatedPackages =
 userEnvPackages :: Set Text
 userEnvPackages =
   S.fromList
-    [ "sharedmimeinfo"
+    [ "shared_mime_info"
     ]
 
 extraRenames :: Monad m => StateT Renames m ()
 extraRenames = do
   rename "ecm" "extra-cmake-modules"
   rename "pythoninterp" "python"
+  rename "sharedmimeinfo" "shared_mime_info"
