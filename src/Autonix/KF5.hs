@@ -158,3 +158,4 @@ extraRenames = do
   rename "ecm" "extra-cmake-modules"
   rename "pythoninterp" "python"
   rename "sharedmimeinfo" "shared_mime_info"
+  rename "fontforge_executable" "fontforge"
