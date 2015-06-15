@@ -129,7 +129,7 @@ nativePackages =
     , "ki18n"
     , "libxslt"
     , "perl"
-    , "pythoninterp"
+    , "python"
     ]
 
 propagatedPackages :: Set Text
@@ -143,3 +143,8 @@ userEnvPackages =
   S.fromList
     [ "sharedmimeinfo"
     ]
+
+extraRenames :: Monad m => StateT Renames m ()
+extraRenames = do
+  rename "ecm" "extra-cmake-modules"
+  rename "pythoninterp" "python"
