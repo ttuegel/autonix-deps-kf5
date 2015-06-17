@@ -151,6 +151,7 @@ userEnvPackages :: Set Text
 userEnvPackages =
   S.fromList
     [ "shared_mime_info"
+    , "shared_desktop_ontologies"
     ]
 
 extraRenames :: Monad m => StateT Renames m ()
