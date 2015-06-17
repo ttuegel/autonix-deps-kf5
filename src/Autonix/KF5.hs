@@ -158,5 +158,7 @@ extraRenames :: Monad m => StateT Renames m ()
 extraRenames = do
   rename "ecm" "extra-cmake-modules"
   rename "pythoninterp" "python"
+  rename "pythonlibrary" "python"
+  rename "shareddesktopontologies" "shared_desktop_ontologies"
   rename "sharedmimeinfo" "shared_mime_info"
   rename "fontforge_executable" "fontforge"
