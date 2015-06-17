@@ -10,6 +10,7 @@ import Control.Monad.State
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import Data.Conduit
+import Data.List (isPrefixOf)
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Monoid
@@ -18,7 +19,7 @@ import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import System.FilePath (takeFileName)
+import System.FilePath (takeBaseName, takeExtensions, takeFileName)
 
 import Autonix.Analyze
 import Autonix.CMake
@@ -55,6 +56,24 @@ findKF5Components _ = awaitForever $ \(path, contents) ->
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
         Package.buildInputs %= S.union new
 
+propagateKF5Deps :: MonadIO m => Analyzer m
+propagateKF5Deps _ = awaitForever $ \(path, contents) ->
+  when (".cmake" `isPrefixOf` takeExtensions path) $ do
+    let base = T.pack $ takeBaseName $ takeBaseName path
+        regex = makeRegex
+                "find_dependency[[:space:]]*\\([[:space:]]*\
+                \([^[:space:],$\\)]+)"
+    case T.splitAt (T.length base - 6) base of
+      (_, "Config") -> do
+        let new = S.fromList
+                  $ map (T.toLower . T.decodeUtf8)
+                  $ filter (not . cmakeReserved)
+                  $ filter (not . B.null)
+                  $ concatMap (take 1 . drop 1)
+                  $ match regex contents
+        Package.propagatedBuildInputs <>= new
+      _ -> return ()
+
 findQt5Components :: MonadIO m => Analyzer m
 findQt5Components _ = awaitForever $ \(path, contents) ->
     when ("CMakeLists.txt" == takeFileName path) $ do
@@ -89,6 +108,7 @@ kf5Analyzers :: (MonadIO m, MonadState Renames m) => [Analyzer m]
 kf5Analyzers =
   [ findKF5Components
   , findQt5Components
+  , propagateKF5Deps
   , renameKF5Pkgs
   ]
   ++ cmakeAnalyzers
