@@ -56,21 +56,22 @@ findKF5Components _ = awaitForever $ \(path, contents) ->
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
         Package.buildInputs %= S.union new
 
-propagateKF5Deps :: MonadIO m => Analyzer m
-propagateKF5Deps _ = awaitForever $ \(path, contents) ->
+propagateKF5Deps :: (MonadIO m, MonadState Renames m) => Analyzer m
+propagateKF5Deps pkg = awaitForever $ \(path, contents) ->
   when (".cmake" `isPrefixOf` takeExtensions path) $ do
     let base = T.pack $ takeBaseName $ takeBaseName path
         regex = makeRegex
                 "find_dependency[[:space:]]*\\([[:space:]]*\
                 \([^[:space:],$\\)]+)"
     case T.splitAt (T.length base - 6) base of
-      (_, "Config") -> do
+      (upstream, "Config") -> do
         let new = S.fromList
                   $ map (T.toLower . T.decodeUtf8)
                   $ filter (not . cmakeReserved)
                   $ filter (not . B.null)
                   $ concatMap (take 1 . drop 1)
                   $ match regex contents
+        lift $ lift $ lift $ rename (T.toLower upstream) pkg
         Package.propagatedBuildInputs <>= new
       _ -> return ()
 
