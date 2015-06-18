@@ -103,6 +103,7 @@ cmakeReserved bs = or $ map ($ bs)
                    , (==) "CONFIG"
                    , (==) "NO_MODULE"
                    , (==) "QUIET"
+                   , (==) "CTest"
                    ]
 
 kf5Analyzers :: (MonadIO m, MonadState Renames m) => [Analyzer m]
