@@ -154,24 +154,24 @@ nativePackages :: Set Text
 nativePackages =
   S.fromList
     [ "bison"
-    , "extra-cmake-modules"
+    , "ecm"
     , "flex"
     , "kdoctools"
     , "ki18n"
     , "libxslt"
     , "perl"
-    , "python"
+    , "pythoninterp"
     ]
 
 propagatedPackages :: Set Text
 propagatedPackages =
   S.fromList
-    [ "extra-cmake-modules"
+    [ "ecm"
     ]
 
 userEnvPackages :: Set Text
 userEnvPackages =
   S.fromList
-    [ "shared_mime_info"
-    , "shared_desktop_ontologies"
+    [ "sharedmimeinfo"
+    , "shareddesktopontologies"
     ]
