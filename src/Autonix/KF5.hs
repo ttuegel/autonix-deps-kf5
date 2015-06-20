@@ -26,22 +26,12 @@ import Autonix.CMake
 import Autonix.Package (Package)
 import qualified Autonix.Package as Package
 import Autonix.Regex
-import Autonix.Renames
 
 printFilePaths :: MonadIO m => Analyzer m
-printFilePaths _ = awaitForever $ \(path, _) -> liftIO $ putStrLn path
+printFilePaths _ _ = awaitForever $ \(path, _) -> liftIO $ putStrLn path
 
-renameKF5Pkgs :: (MonadIO m, MonadState Renames m) => Analyzer m
-renameKF5Pkgs pkg = awaitForever $ \(path, contents) ->
-  when (takeFileName path == "metainfo.yaml") $ do
-    let regex = makeRegex "cmakename:[[:space:]]*([[:alnum:]]*)"
-    case match regex contents of
-      ((_ : cmakeName : _) : _) ->
-        lift $ lift $ lift $ rename (T.toLower $ T.decodeUtf8 cmakeName) pkg
-      _ -> return ()
-
-findKF5Components :: MonadIO m => Analyzer m
-findKF5Components _ = awaitForever $ \(path, contents) ->
+findKF5Components :: (MonadIO m, MonadState (Map Text Package) m) => Analyzer m
+findKF5Components pkg _ = awaitForever $ \(path, contents) ->
     when ("CMakeLists.txt" == takeFileName path) $ do
         let new = S.fromList
                   $ map ("kf5" <>)
@@ -54,29 +44,28 @@ findKF5Components _ = awaitForever $ \(path, contents) ->
             regex = makeRegex
                     "find_package[[:space:]]*\\([[:space:]]*KF5\
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
-        Package.buildInputs %= S.union new
+        ix pkg . Package.buildInputs <>= new
 
-propagateKF5Deps :: (MonadIO m, MonadState Renames m) => Analyzer m
-propagateKF5Deps pkg = awaitForever $ \(path, contents) ->
+propagateKF5Deps :: (MonadIO m, MonadState (Map Text Package) m) => Analyzer m
+propagateKF5Deps pkg _ = awaitForever $ \(path, contents) ->
   when (".cmake" `isPrefixOf` takeExtensions path) $ do
     let base = T.pack $ takeBaseName $ takeBaseName path
         regex = makeRegex
                 "find_dependency[[:space:]]*\\([[:space:]]*\
                 \([^[:space:],$\\)]+)"
     case T.splitAt (T.length base - 6) base of
-      (upstream, "Config") -> do
+      (_, "Config") -> do
         let new = S.fromList
                   $ map (T.toLower . T.decodeUtf8)
                   $ filter (not . cmakeReserved)
                   $ filter (not . B.null)
                   $ concatMap (take 1 . drop 1)
                   $ match regex contents
-        lift $ lift $ lift $ rename (T.toLower upstream) pkg
-        Package.propagatedBuildInputs <>= new
+        ix pkg . Package.propagatedBuildInputs <>= new
       _ -> return ()
 
-findQt5Components :: MonadIO m => Analyzer m
-findQt5Components _ = awaitForever $ \(path, contents) ->
+findQt5Components :: (MonadIO m, MonadState (Map Text Package) m) => Analyzer m
+findQt5Components pkg _ = awaitForever $ \(path, contents) ->
     when ("CMakeLists.txt" == takeFileName path) $ do
         let new = S.fromList
                   $ map ("qt5" <>)
@@ -89,7 +78,7 @@ findQt5Components _ = awaitForever $ \(path, contents) ->
             regex = makeRegex
                     "find_package[[:space:]]*\\([[:space:]]*Qt5\
                     \[[:space:]]*([#\\.${}_[:alnum:][:space:]]+)\\)"
-        Package.buildInputs %= S.union new
+        ix pkg . Package.buildInputs <>= new
 
 cmakeReserved :: ByteString -> Bool
 cmakeReserved bs = or $ map ($ bs)
@@ -106,12 +95,11 @@ cmakeReserved bs = or $ map ($ bs)
                    , (==) "CTest"
                    ]
 
-kf5Analyzers :: (MonadIO m, MonadState Renames m) => [Analyzer m]
+kf5Analyzers :: (MonadIO m, MonadState (Map Text Package) m) => [Analyzer m]
 kf5Analyzers =
   [ findKF5Components
   , findQt5Components
   , propagateKF5Deps
-  , renameKF5Pkgs
   ]
   ++ cmakeAnalyzers
 
