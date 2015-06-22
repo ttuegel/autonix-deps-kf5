@@ -6,4 +6,4 @@ import Autonix
 import Autonix.KF5
 
 main :: IO ()
-main = autonix kf5Analyzers postProcess
+main = autonix kf5Analyzers id

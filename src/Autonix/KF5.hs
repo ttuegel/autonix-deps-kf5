@@ -12,9 +12,7 @@ import qualified Data.ByteString.Char8 as B
 import Data.Conduit
 import Data.List (isPrefixOf)
 import Data.Map (Map)
-import qualified Data.Map as M
 import Data.Monoid
-import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -102,64 +100,3 @@ kf5Analyzers =
   , propagateKF5Deps
   ]
   ++ cmakeAnalyzers
-
-postProcess :: Map Text Package -> Map Text Package
-postProcess = M.mapWithKey (\name -> execState (sequence_ (processors name)))
-  where
-    processors name = [ breakCycles name, userEnv, native, propagate ]
-
-    userEnv = do
-      puep <- S.intersection userEnvPackages <$> use Package.buildInputs
-      Package.propagatedUserEnvPkgs <>= puep
-
-    native = do
-      nbi <- S.intersection nativePackages <$> use Package.buildInputs
-      Package.nativeBuildInputs <>= nbi
-      let isNative pkg = S.member pkg nbi
-      Package.buildInputs %= S.filter (not . isNative)
-
-    propagate = do
-      let propagated = S.intersection propagatedPackages
-
-      pbi <- propagated <$> use Package.buildInputs
-      Package.propagatedBuildInputs <>= pbi
-      let isPropagated pkg = S.member pkg pbi
-      Package.buildInputs %= S.filter (not . isPropagated)
-
-      pnbi <- propagated <$> use Package.nativeBuildInputs
-      Package.propagatedNativeBuildInputs <>= pnbi
-      let isPropagatedNative pkg = S.member pkg pnbi
-      Package.nativeBuildInputs %= S.filter (not . isPropagatedNative)
-
-    breakCycles pkg = do
-      Package.buildInputs %= S.delete pkg
-      Package.nativeBuildInputs %= S.delete pkg
-      Package.propagatedBuildInputs %= S.delete pkg
-      Package.propagatedNativeBuildInputs %= S.delete pkg
-      Package.propagatedUserEnvPkgs %= S.delete pkg
-
-nativePackages :: Set Text
-nativePackages =
-  S.fromList
-    [ "bison"
-    , "ecm"
-    , "flex"
-    , "kdoctools"
-    , "ki18n"
-    , "libxslt"
-    , "perl"
-    , "pythoninterp"
-    ]
-
-propagatedPackages :: Set Text
-propagatedPackages =
-  S.fromList
-    [ "ecm"
-    ]
-
-userEnvPackages :: Set Text
-userEnvPackages =
-  S.fromList
-    [ "sharedmimeinfo"
-    , "shareddesktopontologies"
-    ]
